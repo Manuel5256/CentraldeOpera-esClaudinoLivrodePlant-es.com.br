@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Livro de Plantões - Grupo Claudino</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -19,7 +20,7 @@
     }
 
     main {
-      max-width: 900px;
+      max-width: 650px; /* Reduzido de 900px */
       margin: 20px auto;
       padding: 20px;
       background-color: white;
@@ -50,7 +51,7 @@
 
     th, td {
       border: 1px solid #ccc;
-      padding: 8px;
+      padding: 6px; /* Reduzido de 8px */
       text-align: center;
     }
 
@@ -69,6 +70,12 @@
     button:hover {
       background-color: #003f77;
     }
+
+    .preenchido-dia {
+      background: #b6f5b6 !important;
+      color: #006400 !important;
+      border-radius: 50% !important;
+    }
   </style>
 </head>
 <body>
@@ -80,14 +87,12 @@
   <main>
     <div class="controls">
       <label><strong>Data do Plantão:</strong></label>
-      <input type="date" id="dataInput" />
+      <input type="text" id="dataInput" />
       <button onclick="abrirPagina()">Abrir Página</button>
       <button onclick="addRow()">Adicionar Linha</button>
       <button onclick="removeRow()">Remover Última Linha</button>
       <button onclick="exportToExcel()">Exportar Excel</button>
     </div>
-
-    <h3>Página: <span id="paginaData"></span></h3>
 
     <div style="margin-bottom: 10px;">
       <label><strong>Operador de CFTV:</strong></label>
@@ -108,16 +113,14 @@
       <tbody></tbody>
     </table>
   </main>
-
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/pt.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
     let tabela = document.querySelector("#planilha tbody");
     let dataAtual = new Date();
     let dataFormatada = formatarData(dataAtual);
     let chaveStorage = "plantao_" + dataFormatada;
-
-    document.getElementById("dataInput").value = dataFormatada;
-    document.getElementById("paginaData").innerText = dataAtual.getDate();
 
     function formatarData(data) {
       const d = new Date(data);
@@ -132,11 +135,59 @@
       return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     }
 
+    // Função para buscar datas preenchidas no mês atual
+    function getDatasPreenchidas(mes, ano) {
+      const datas = [];
+      const diasNoMes = new Date(ano, mes, 0).getDate();
+      for (let i = 1; i <= diasNoMes; i++) {
+        const dia = String(i).padStart(2, '0');
+        const mesStr = String(mes).padStart(2, '0');
+        const dataStr = `${ano}-${mesStr}-${dia}`;
+        const dados = localStorage.getItem("plantao_" + dataStr);
+        if (dados && JSON.parse(dados).length > 0) {
+          datas.push(dataStr);
+        }
+      }
+      return datas;
+    }
+
+    // Inicializa o flatpickr
+    flatpickr("#dataInput", {
+      locale: "pt", // <-- Adicionado para português
+      dateFormat: "d/m/Y", // <-- Formato brasileiro visual no input
+      defaultDate: dataFormatada,
+      onChange: function(selectedDates, dateStr, instance) {
+        // Converta para o formato ISO para salvar e manipular internamente
+        const dataISO = selectedDates[0]
+          ? selectedDates[0].toISOString().slice(0, 10)
+          : "";
+        dataFormatada = dataISO;
+        chaveStorage = "plantao_" + dataFormatada;
+        limparTabela();
+        carregarDados();
+        carregarOperador();
+        instance.redraw();
+      },
+      onMonthChange: function(selectedDates, dateStr, instance) {
+        instance.redraw();
+      },
+      onYearChange: function(selectedDates, dateStr, instance) {
+        instance.redraw();
+      },
+      onDayCreate: function(dObj, dStr, fp, dayElem) {
+        const dia = dayElem.dateObj;
+        const dataFormatadaDia = `${dia.getFullYear()}-${String(dia.getMonth()+1).padStart(2,'0')}-${String(dia.getDate()).padStart(2,'0')}`;
+        const datasPreenchidas = getDatasPreenchidas(dia.getMonth()+1, dia.getFullYear());
+        if (datasPreenchidas.includes(dataFormatadaDia)) {
+          dayElem.classList.add("preenchido-dia");
+        }
+      }
+    });
+
     function abrirPagina() {
       const novaData = document.getElementById("dataInput").value;
       dataFormatada = novaData;
       chaveStorage = "plantao_" + dataFormatada;
-      document.getElementById("paginaData").innerText = new Date(novaData).getDate();
       limparTabela();
       carregarDados();
       carregarOperador();
@@ -157,14 +208,13 @@
         });
       } else {
         const nomes = [
-          "FABIO MELLO","LUCIMAR","LUCIANO","JOSIAS","PAULO BRANDAO","LAVOR","PAULO CEZAR","ANTONIO ILSON",
-          "FABRICIO","TAVARES","EDSON CARLOS","JESUS","MESSIAS","RAIMUNDO","CLEISAN","MICLESSIO",
-          "ERLANI","JOAO DE DEUS","JUSCIEL","EDENILSON","FILHO","ROMARIO","PADUA","CARVALHO",
-          "ANTONIO","ADRIANO","ASSIS","ROCKLLAYNE","ALEXANDRE","LIMA"
+          "lucimar","fabio","luciano","josias","paulo brandao","lavor","paulo cezar","antonio ilson",
+          "fabricio","tavares","edson carlos","jesus","massias","raimundo","celisan","miclesso",
+          "erlani","joao de deus","jusciel","edenilson","filho","romario","padua","carvalho",
+          "antonio","adriano","assis","rockllayne","alexandre","lima"
         ];
         const postos = [
-          "PC","AP","PC","PL","TDC","PB","AP.TDC","P1","P2","P3","P4","P5","P6","P7","P8",
-          "P9","P10","P11","P13","P13","P13","P14","P15","P16","P18","P20","CAMP.BK","BIKE NORTE","BIKE NORTE","PIRIPIRI-MA"
+          "PC", "AP", "PC"
         ];
         nomes.forEach((nome, idx) => {
           const row = tabela.insertRow();
@@ -172,7 +222,7 @@
             const cell = row.insertCell();
             cell.contentEditable = true;
             if (i === 0) cell.innerText = nome;
-            if (i === 1) cell.innerText = postos[idx] || "";
+            if (i === 1 && idx < postos.length) cell.innerText = postos[idx];
             cell.addEventListener("input", salvarDados);
           }
         });
@@ -227,7 +277,7 @@
 
     function exportToExcel() {
       const operador = document.getElementById("operadorInput").value || "Não informado";
-      const dataExibida = document.getElementById("paginaData").innerText;
+      const dataExibida = document.getElementById("dataInput").value;
 
       const tabelaOriginal = document.getElementById("planilha");
       const tabelaClone = tabelaOriginal.cloneNode(true);
@@ -248,7 +298,6 @@
       XLSX.writeFile(wb, `plantao_${dataFormatada}.xlsx`);
     }
 
-    // ATALHO F2: INSERE HORÁRIO ATUAL NA COLUNA "HORÁRIO"
     document.addEventListener("keydown", function (e) {
       if (e.key === "F2") {
         e.preventDefault();
@@ -273,7 +322,3 @@
   </script>
 </body>
 </html>
-
-
-
-
